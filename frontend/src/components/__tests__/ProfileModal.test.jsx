@@ -12,7 +12,11 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('../../context/AuthContext', () => ({ api: mocks.api, useAuth: () => mocks.auth }));
 vi.mock('../toast/useToast', () => ({ useToast: () => mocks.toast }));
-vi.mock('../DeleteAccountSection', () => ({ default: () => <div>Account deletion settings</div> }));
+vi.mock('../DeleteAccountSection', () => ({
+  default: ({ onClose }) => (
+    <button type="button" onClick={onClose}>Account deletion settings</button>
+  ),
+}));
 
 import ProfileModal from '../ProfileModal';
 
@@ -65,6 +69,15 @@ describe('ProfileModal', () => {
     expect(screen.getByRole('button', { name: 'Change Password' })).toBeDisabled();
     expect(screen.getByText('Account deletion settings')).toBeInTheDocument();
     expect(mocks.api.get).not.toHaveBeenCalled();
+  });
+
+  it('passes the close callback to the deletion section', async () => {
+    const user = userEvent.setup();
+    const onClose = renderProfile();
+
+    await user.click(screen.getByRole('button', { name: 'Account deletion settings' }));
+
+    expect(onClose).toHaveBeenCalledOnce();
   });
 
   it('handles missing optional profile details', () => {
@@ -168,6 +181,7 @@ describe('ProfileModal', () => {
       await act(async () => resolveSave({ data: { ...ACCOUNT, username: 'alice_new' } }));
       expect(onClose).toHaveBeenCalledOnce();
     });
+
     it('saves an available username, updates the signed-in user and closes', async () => {
       const user = userEvent.setup();
       const updated = { ...ACCOUNT, username: 'alice_new' };
@@ -235,6 +249,7 @@ describe('ProfileModal', () => {
       await act(async () => resolveChange({ data: { access_token: 'replacement-token' } }));
       expect(mocks.auth.setAccessToken).toHaveBeenCalledWith('replacement-token');
     });
+
     it('changes the password, replaces the token and clears the password fields', async () => {
       const user = userEvent.setup();
       mocks.api.post.mockResolvedValue({ data: { access_token: 'replacement-token' } });
@@ -257,7 +272,7 @@ describe('ProfileModal', () => {
     });
 
     it.each([
-      [{ response: { data: { detail: 'Current password is incorrect.' } } }, 'Current password is incorrect.'],
+      [{ response: { data: { detail: 'That is not your current password.' } } }, 'That is not your current password.'],
       [new Error('offline'), 'Could not change the password.'],
     ])('keeps the password fields after an API error: %s', async (error, message) => {
       const user = userEvent.setup();
